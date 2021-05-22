@@ -4,7 +4,7 @@
 
 (defsystem #:cl-ptrace
   :description "My own take at a lisp process hacking"
-  :version "1.0.0"
+  :version "2.0.0"
   :author "liamm91"
   :licence "MIT"
   :depends-on ("cffi" "cl-ppcre")

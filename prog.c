@@ -9,6 +9,6 @@ int main () {
 	while (flag == 0xABCD) {
 		++x;
 	}
-	printf("Modified flag variable! Flag now: %x", flag);
+	printf("Modified flag variable! Flag now: %x\n", flag);
 	return 0;
 }

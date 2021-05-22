@@ -1,6 +1,3 @@
-;;; TO DO
-;;; Make an injection repl
-
 ;;;; This is a testing program to load and test making bindings for c functions
 
 ;; This isn't loading for whatever reason
@@ -13,7 +10,8 @@
 (define-foreign-library libc
     (:unix (:or
             "/usr/lib/libc.so"
-            "/usr/lib/libc-2.33.so")))
+            "/usr/lib/libc-2.33.so"
+	    "/usr/lib/x86_64-linux-gnu/libc-2.31.so")))
 
 (use-foreign-library libc)
 
@@ -279,8 +277,8 @@
 
 (defun attach-to (&optional (pid *pid*) (lisp-form *lisp-form*) (verbose *verbose*))
     "This function attaches the REPL to the specified process"
-    (let ((ptrace-return-value (ptrace +PTRACE-ATTACH+ pid +NULL+ +NULL+)))
-        (if (ptrace-success-p ptrace-return-value)
+  (let ((ptrace-return-value (ptrace +PTRACE-ATTACH+ pid +NULL+ +NULL+)))
+    (if (ptrace-success-p ptrace-return-value)
             (with-foreign-object (status :int)
                 (waitpid pid status 0)
                 (if verbose (progn

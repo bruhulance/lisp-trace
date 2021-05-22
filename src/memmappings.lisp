@@ -29,23 +29,23 @@
 (in-package :cl-ptrace)
 
 ;; We are counting in bits, not bytes
-(defconstant +CHAR+ (* 8 1))    ; 1 byte
-(defconstant +SHORT+ (* 8 2))   ; 2 bytes
-(defconstant +INTEGER+ (* 8 4)) ; 4 bytes
-(defconstant +LONG+ (* 8 8))    ; 8 bytes
+(defconstant +BYTE+       (* 8 1)) ; 1 byte
+(defconstant +WORD+       (* 8 2)) ; 2 bytes 
+(defconstant +DOUBLEWORD+ (* 8 4)) ; 4 bytes
+(defconstant +QUADWORD+   (* 8 8)) ; 8 bytes
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Snapshot Functions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defmacro heap-snapshot (&optional (pid *pid*) (read-size +CHAR+))
+(defmacro heap-snapshot (&optional (pid *pid*) (read-size +BYTE+))
   "This function is a short-hand to read and take the snapshot of the heap."
   `(let ((heap-range (get-heap-region ,pid)))
      (if (null heap-range)
 	 nil
 	 (collect-address-value-pairs heap-range ,read-size ,pid))))
 
-(defmacro memory-snapshot (&optional (pid *pid*) (read-size +CHAR+))
+(defmacro memory-snapshot (&optional (pid *pid*) (read-size +BYTE+))
   "This function takes a list of address ranges and then calls collect-address-value-pairs on them."
   `(apply #'append (loop for region in (get-memory-regions ,pid)
 	collect (collect-address-value-pairs region ,pid ,read-size))))
@@ -70,36 +70,41 @@
 ;; Search Functions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defmacro search-all-regions (target-value &optional (pid *pid*) (read-size +CHAR+))
+(defmacro search-sieve (sieve target-value &optional (pid *pid*))
+  "Used to take a list of memory addresses and compare the values at those addresses to the target-value"
+  `(loop for address in ,sieve
+	      collect (eq ,target-value (peekdata address ,pid nil nil))))
+
+(defmacro search-all-regions (target-value &optional (pid *pid*) (read-size +BYTE+))
   "This macro is a short-hands to search every memory region for the target-value"
   `(apply #'append (loop for range in (get-memory-regions ,pid)
 	      collect (search-region ,target-value range ,pid ,read-size))))
 
-(defun search-region (target-value region &optional (pid *pid*) (read-size +CHAR+))
+(defun search-region (target-value region &optional (pid *pid*) (read-size +BYTE+))
   "This function searches for the target-value in a region of memory addresses and returns a list of addresses who's value matches the target-value."
   (loop for n from 0 to (/ (- (cadr region) (car region)) read-size)
 	for mem-value = (peekdata (+ (car region) (* n read-size)) pid nil nil)
-	if (= target-value mem-value)
+	if (eq target-value mem-value)
 	  collect (+ (car region) (* n read-size))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Miscellaneous Functions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defun collect-address-value-pairs (region &optional (pid *pid*) (read-size +CHAR+))
+(defun collect-address-value-pairs (region &optional (pid *pid*) (read-size +BYTE+))
   "This function searches each memory address and returns it and its corresponding value."
   (loop for n from 0 to (/ (- (cadr region) (car region)) read-size)
 	collect (list (+ (car region) (* n read-size)) (peekdata (+ (car region) (* n read-size)) pid nil nil))))
 
-(defmacro print-memory-regions (&optional (pid *pid*) (read-size +CHAR+))
+(defmacro print-memory-regions (&optional (pid *pid*) (read-size +BYTE+))
   "This function prints the number of addresses in each address range: [a, b]. Including a proper (- a b) form"
   `(let ((list-regions (get-memory-regions ,pid)))
-     (format t "Read size: ~D bits~%" ,read-size)
+     (format t "Read size: ~D byte~:*~[~;~:;s~]~%" (/ ,read-size 8))
      (loop for region in list-regions
 	   do (format t "(- ~D ~D) >> ~D Addrs~%" (car region) (cadr region) (/ (- (cadr region) (car region)) ,read-size)))
      t))
 
-(defun num-addresses (&optional (pid *pid*) (read-size +CHAR+))
+(defun num-addresses (&optional (pid *pid*) (read-size +BYTE+))
   "Sums the amount of addresses used by the process"
   (let ((mappings (get-memory-regions pid)))
     (apply #'+ (loop for region in mappings
