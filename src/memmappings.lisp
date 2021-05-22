@@ -80,18 +80,21 @@
   `(apply #'append (loop for range in (get-memory-regions ,pid)
 	      collect (search-region ,target-value range ,pid ,read-size))))
 
-(defun search-region (target-value region &optional (pid *pid*) (read-size +BYTE+))
-  "This function searches for the target-value in a region of memory addresses and returns a list of addresses who's value matches the target-value."
-  (loop for n from 0 to (/ (- (cadr region) (car region)) read-size)
-	for mem-value = (peekdata (+ (car region) (* n read-size)) pid nil nil)
-	if (eq target-value mem-value)
-	  collect (+ (car region) (* n read-size))))
+(defun search-region (target-value region &optional (pid *pid*) (byte-padding t))
+  (loop for address from (car region) to (cadr region)
+	when (ends-with-bits? (peekdata address pid nil nil) target-value bits)
+	  collect address))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Miscellaneous Functions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defun collect-address-value-pairs (region &optional (pid *pid*) (read-size +BYTE+))
+(defun ends-with-bits? (target-number match-number &optional (bits (integer-length target-number)))
+    "Returns true if the bit representation of target-number ends with the bit representation of match-number. thanks k-stz"
+    (= (ldb (byte bits 0) match-number)
+       (ldb (byte bits 0) target-number)))
+  
+(defun collect-address-value-pairs (region &optional (pid *pid*) (read-size +CHAR+))
   "This function searches each memory address and returns it and its corresponding value."
   (loop for n from 0 to (/ (- (cadr region) (car region)) read-size)
 	collect (list (+ (car region) (* n read-size)) (peekdata (+ (car region) (* n read-size)) pid nil nil))))
