@@ -2,9 +2,9 @@
 
 (in-package :asdf-user)
 
-(defsystem #:cl-ptrace
+(defsystem #:ltrace
   :description "My own take at a lisp process hacking"
-  :version "2.0.0"
+  :version "2.1.0"
   :author "liamm91"
   :licence "MIT"
   :depends-on ("cffi" "cl-ppcre")

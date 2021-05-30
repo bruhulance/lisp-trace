@@ -2,5 +2,5 @@
 
 (in-package "COMMON-LISP-USER")
 
-(defpackage :cl-ptrace
+(defpackage :ltrace
     (:use :common-lisp :sb-ext :cffi))

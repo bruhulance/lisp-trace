@@ -34,6 +34,9 @@
 (defconstant +DOUBLEWORD+ (* 8 4)) ; 4 bytes
 (defconstant +QUADWORD+   (* 8 8)) ; 8 bytes
 
+;; defining variables for mem-mapping purposes
+(defvar *sieve* '() "this is the place where the results of searching functions will output to")
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Snapshot Functions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -70,31 +73,58 @@
 ;; Search Functions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defmacro search-sieve (sieve target-value &optional (pid *pid*))
-  "Used to take a list of memory addresses and compare the values at those addresses to the target-value"
-  `(loop for address in ,sieve
-	      collect (eq ,target-value (peekdata address ,pid nil nil))))
+(defmacro search-heap (target-value &optional (pid *pid*) (byte-padding t))
+  "shorthand to search the heap for a value"
+  `(setq *sieve* (search-region ,target-value :address-range (get-heap-region ,pid) :pid ,pid :byte-padding ,byte-padding)))
 
-(defmacro search-all-regions (target-value &optional (pid *pid*) (read-size +BYTE+))
+(defmacro search-sieve (target-value &optional (sieve '*sieve*) (pid *pid*) (byte-padding t))
+  "Used to take a list of memory addresses and compare the values at those addresses to the target-value"
+  `(search-region ,target-value :address-list ,sieve :pid ,pid :byte-padding ,byte-padding))
+
+(defmacro search-all-regions (target-value &optional (pid *pid*) (byte-padding t))
   "This macro is a short-hands to search every memory region for the target-value"
   `(apply #'append (loop for range in (get-memory-regions ,pid)
-	      collect (search-region ,target-value range ,pid ,read-size))))
+	      collect (search-region ,target-value :address-range range :pid ,pid :byte-padding ,byte-padding))))
 
-(defun search-region (target-value region &optional (pid *pid*) (byte-padding t))
-  (loop for address from (car region) to (cadr region)
-	when (ends-with-bits? (peekdata address pid nil nil) target-value bits)
-	  collect address))
+(defun search-region (target-value &key (pid *pid*)
+				     (byte-padding t)
+				     (address-range nil)
+				     (address-list nil))
+  "this function takes a target-value and a RANGE of addresses and searches all the addresses within the range to find the value. thanks k-stz"
+  (let ((bits (if byte-padding
+		  (* 8 (integer-byte-length target-value))
+		  (integer-length target-value))))
+    (cond
+      ((not (null address-range))
+       (loop for address from (car address-range) to (cadr address-range)
+	     when (ends-with-bits? (peekdata address pid nil nil) target-value bits)
+	       collect address))
+      ((not (null address-list))
+       (loop for address in address-list
+	     when (ends-with-bits? (peekdata address pid nil nil) target-value bits)
+	       collect address))
+      (t ;; this is the fall through case where nothing is given
+       nil))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Miscellaneous Functions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defun integer-byte-length (integer)
+  "this function returns the amount of bytes it takes to represent the integer given. thanks k-stz"
+  (let ((bytes (ceiling (integer-length integer)
+			8)))
+    (if (= bytes 0)
+	1
+	;; if the number is 0, return 1
+	bytes)))
 
 (defun ends-with-bits? (target-number match-number &optional (bits (integer-length target-number)))
     "Returns true if the bit representation of target-number ends with the bit representation of match-number. thanks k-stz"
     (= (ldb (byte bits 0) match-number)
        (ldb (byte bits 0) target-number)))
   
-(defun collect-address-value-pairs (region &optional (pid *pid*) (read-size +CHAR+))
+(defun collect-address-value-pairs (region &optional (pid *pid*) (read-size +BYTE+))
   "This function searches each memory address and returns it and its corresponding value."
   (loop for n from 0 to (/ (- (cadr region) (car region)) read-size)
 	collect (list (+ (car region) (* n read-size)) (peekdata (+ (car region) (* n read-size)) pid nil nil))))
